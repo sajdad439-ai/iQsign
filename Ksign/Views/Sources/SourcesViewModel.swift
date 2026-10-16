@@ -1,13 +1,15 @@
 //
 //  SourcesViewModel.swift
-//  Feather
+//  iQsign
 //
 //  Created by samara on 30.04.2025.
+//  Modified by idk
 //
 
 import Foundation
 import AltSourceKit
 import SwiftUI
+import CoreData
 import NimbleJSON
 
 // MARK: - Class
@@ -21,14 +23,42 @@ final class SourcesViewModel: ObservableObject {
 	var isFinished = true
 	@Published var sources: [AltSource: ASRepository] = [:]
 	
+	// رابط سورس المتجر الافتراضي
+	private let defaultRepoURLString = "https://raw.githubusercontent.com/ikiraplus/ipastore/main/jom.json"
+	
+	init() {
+		checkAndAddDefaultSource()
+	}
+	
+	/// التحقق من وجود السورس الافتراضي وإضافته تلقائياً عند التشغيل الأول
+	func checkAndAddDefaultSource() {
+		guard let defaultURL = URL(string: defaultRepoURLString) else { return }
+		
+		let context = Storage.shared.context
+		let request: NSFetchRequest<AltSource> = AltSource.fetchRequest()
+		request.predicate = NSPredicate(format: "sourceURL == %@", defaultURL as CVarArg)
+		
+		do {
+			let count = try context.count(for: request)
+			if count == 0 {
+				let newSource = AltSource(context: context)
+				newSource.sourceURL = defaultURL
+				newSource.name = "iQsign Store"
+				newSource.identifier = "com.iqsign.store"
+				newSource.dateAdded = Date()
+				
+				try context.save()
+			}
+		} catch {
+			print("Error inserting default source: \(error)")
+		}
+	}
+	
 	func fetchSources(_ sources: FetchedResults<AltSource>, refresh: Bool = false, batchSize: Int = 4) async {
 		guard isFinished else { return }
 		
-		// check if sources to be fetched are the same as before, if yes, return
-		// also skip check if refresh is true
 		if !refresh, sources.allSatisfy({ self.sources[$0] != nil }) { return }
 		
-		// isfinished is used to prevent multiple fetches at the same time
 		isFinished = false
 		defer { isFinished = true }
 		
